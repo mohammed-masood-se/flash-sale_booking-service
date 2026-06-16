@@ -8,15 +8,18 @@ import (
 func main() {
 
 	restServerPort := os.Getenv("REST_SERVER_PORT")
+	mongoUri := os.Getenv("MONGODB_CONNECTION_STRING")
 
 	app, err := NewApplication(ApplicationConfig{
 		RestServerPort: restServerPort,
+		MongoURI:       mongoUri,
 	})
 
 	if err != nil {
 		log.Printf("failed creating NewApplication: %v", err)
 		return
 	}
+	defer app.Shutdown()
 
 	err = app.Run()
 
