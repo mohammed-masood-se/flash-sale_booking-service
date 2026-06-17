@@ -1,7 +1,9 @@
 package main
 
 import (
+	"booking-service/internal/adapters/mongorepo"
 	"booking-service/internal/adapters/rest"
+	"booking-service/internal/core/services"
 	"context"
 	"fmt"
 	"log"
@@ -25,7 +27,7 @@ type Application struct {
 }
 
 func NewApplication(config ApplicationConfig) (*Application, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
 	mongoClient, err := GetMongoClient(ctx, config.MongoURI)
@@ -35,8 +37,22 @@ func NewApplication(config ApplicationConfig) (*Application, error) {
 	}
 	log.Println("[mongo-client] connected successfully")
 
+	database := mongoClient.Database("flash-sale")
+	txmanager := mongorepo.NewMongoTransactionManager(mongoClient)
+
+	usersCollection := database.Collection("users")
+	registrationCollection := database.Collection("registration")
+
+	userRepository, err := mongorepo.NewUserRepository(ctx, usersCollection, registrationCollection)
+	if err != nil {
+		return nil, fmt.Errorf("failed creating NewUserRepository: %w", err)
+	}
+	userService := services.NewUserService(txmanager, userRepository)
+
 	restServer, err := rest.NewRestServer(rest.RestServerConfig{
 		Port: config.RestServerPort,
+	}, &rest.Services{
+		UserService: userService,
 	})
 
 	if err != nil {
