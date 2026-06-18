@@ -50,43 +50,6 @@ func NewUserRepository(ctx context.Context, usersCollection, registrationCollect
 	}, nil
 }
 
-func (repo *UserRepository) InsertUser(ctx context.Context, user domain.User) (string, error) {
-	result, err := repo.usersCollection.InsertOne(ctx, schema.User{
-		Email:    user.Email,
-		Password: user.Password,
-	})
-
-	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
-			return "", domain.ErrDuplicateEntry
-		}
-		return "", fmt.Errorf("failed running InsertOne: %w", err)
-	}
-
-	oid, ok := result.InsertedID.(bson.ObjectID)
-	if !ok {
-		return "", fmt.Errorf("failed converting insertedID into bson.ObjectID")
-	}
-
-	return oid.Hex(), nil
-}
-
-func (repo *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
-	var user schema.User
-	err := repo.usersCollection.FindOne(ctx, bson.M{
-		"email": email,
-	}).Decode(&user)
-
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, domain.ErrNotFound
-		}
-		return nil, fmt.Errorf("failed running FindOne: %w", err)
-	}
-
-	return user.ToDomainModel(), nil
-}
-
 func (repo *UserRepository) InsertRegistration(ctx context.Context, reg domain.Registration) (string, error) {
 	result, err := repo.registrationCollection.InsertOne(ctx, schema.Registration{
 		Email:    reg.Email,
@@ -126,4 +89,41 @@ func (repo *UserRepository) GetRegistrationByEmail(ctx context.Context, email st
 	}
 
 	return registration.ToDomainModel(), nil
+}
+
+func (repo *UserRepository) InsertUser(ctx context.Context, user domain.User) (string, error) {
+	result, err := repo.usersCollection.InsertOne(ctx, schema.User{
+		Email:    user.Email,
+		Password: user.Password,
+	})
+
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return "", domain.ErrDuplicateEntry
+		}
+		return "", fmt.Errorf("failed running InsertOne: %w", err)
+	}
+
+	oid, ok := result.InsertedID.(bson.ObjectID)
+	if !ok {
+		return "", fmt.Errorf("failed converting insertedID into bson.ObjectID")
+	}
+
+	return oid.Hex(), nil
+}
+
+func (repo *UserRepository) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	var user schema.User
+	err := repo.usersCollection.FindOne(ctx, bson.M{
+		"email": email,
+	}).Decode(&user)
+
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed running FindOne: %w", err)
+	}
+
+	return user.ToDomainModel(), nil
 }

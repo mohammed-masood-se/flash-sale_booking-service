@@ -2,6 +2,7 @@ package main
 
 import (
 	"booking-service/internal/adapters/mongorepo"
+	"booking-service/internal/adapters/rediscache"
 	"booking-service/internal/adapters/rest"
 	"booking-service/internal/core/services"
 	"context"
@@ -9,6 +10,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
@@ -16,12 +18,14 @@ import (
 
 type ApplicationConfig struct {
 	MongoURI       string
+	RedisAddr      string
 	RestServerPort string
 }
 
 type Application struct {
 	config      *ApplicationConfig
 	MongoClient *mongo.Client
+	RedisClient *redis.Client
 
 	RestServer *rest.RestServer
 }
@@ -40,6 +44,18 @@ func NewApplication(config ApplicationConfig) (*Application, error) {
 	database := mongoClient.Database("flash-sale")
 	txmanager := mongorepo.NewMongoTransactionManager(mongoClient)
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     config.RedisAddr,
+		Password: "",
+		DB:       0,
+		Protocol: 2,
+	})
+
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("failed pinging redis client: %w", err)
+	}
+	log.Println("[redis-client] connected successfully")
+
 	usersCollection := database.Collection("users")
 	registrationCollection := database.Collection("registration")
 
@@ -47,7 +63,8 @@ func NewApplication(config ApplicationConfig) (*Application, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed creating NewUserRepository: %w", err)
 	}
-	userService := services.NewUserService(txmanager, userRepository)
+	userCache := rediscache.NewUserCache(redisClient)
+	userService := services.NewUserService(txmanager, userRepository, userCache)
 
 	restServer, err := rest.NewRestServer(rest.RestServerConfig{
 		Port: config.RestServerPort,
@@ -63,6 +80,7 @@ func NewApplication(config ApplicationConfig) (*Application, error) {
 	return &Application{
 		config:      &config,
 		MongoClient: mongoClient,
+		RedisClient: redisClient,
 
 		RestServer: restServer,
 	}, nil
@@ -81,6 +99,10 @@ func (app *Application) Shutdown() error {
 
 	if err := app.MongoClient.Disconnect(ctx); err != nil {
 		return fmt.Errorf("failed disconnecting MongoClient: %w", err)
+	}
+
+	if err := app.RedisClient.Close(); err != nil {
+		return fmt.Errorf("failed closing redis client connection: %w", err)
 	}
 
 	return nil

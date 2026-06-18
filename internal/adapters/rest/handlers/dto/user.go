@@ -19,3 +19,13 @@ type VerfiyUserResponse struct {
 	UserID  string `json:"userID"`
 	Message string `json:"message"`
 }
+
+type LoginUserRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginUserResponse struct {
+	SessionID string `json:"sessionID"`
+	Message   string `json:"message"`
+}

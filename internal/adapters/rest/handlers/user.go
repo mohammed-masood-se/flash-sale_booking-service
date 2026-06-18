@@ -27,6 +27,7 @@ func (handler *UserHandler) GetRouter() chi.Router {
 	router := chi.NewRouter()
 	router.Post("/", handler.RegisterUser)
 	router.Post("/verify", handler.VerifyUser)
+	router.Post("/login", handler.LoginUser)
 	return router
 }
 
@@ -84,5 +85,31 @@ func (handler *UserHandler) VerifyUser(w http.ResponseWriter, r *http.Request) {
 	util.WriteJSON(w, http.StatusCreated, dto.VerfiyUserResponse{
 		UserID:  insertedID,
 		Message: "your account has been successfully verified",
+	})
+}
+
+func (handler *UserHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	var body dto.LoginUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		util.BadRequest(w, "invalid json body")
+		return
+	}
+
+	sessionID, err := handler.userService.LoginUser(ctx, body.Email, body.Password)
+	if err != nil {
+		util.HandleError(w, err, func(clientError error) {
+			util.BadRequest(w, clientError.Error())
+		})
+		return
+	}
+
+	util.WriteJSON(w, http.StatusOK, dto.LoginUserResponse{
+		SessionID: sessionID,
+		Message:   "login successfull",
 	})
 }

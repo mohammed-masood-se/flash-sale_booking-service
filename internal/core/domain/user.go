@@ -16,3 +16,4 @@ type User struct {
 }
 
 var ErrUserAlreadyRegistered = errors.New("user has already registered")
+var ErrInvalidCredentails = errors.New("invalid credentials")

@@ -4,6 +4,8 @@ import (
 	"booking-service/internal/core/domain"
 	"booking-service/internal/core/ports"
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -12,12 +14,14 @@ import (
 type UserService struct {
 	txmanager      ports.TxManager
 	userRepository ports.UserRepository
+	userCache      ports.UserCache
 }
 
-func NewUserService(txmanager ports.TxManager, userRepository ports.UserRepository) *UserService {
+func NewUserService(txmanager ports.TxManager, userRepository ports.UserRepository, userCache ports.UserCache) *UserService {
 	return &UserService{
 		txmanager:      txmanager,
 		userRepository: userRepository,
+		userCache:      userCache,
 	}
 }
 
@@ -92,4 +96,39 @@ func (service *UserService) VerifyUser(ctx context.Context, email, code string) 
 	})
 
 	return insertedID, err
+}
+
+func (service *UserService) LoginUser(ctx context.Context, email, password string) (string, error) {
+
+	user, err := service.userRepository.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return "", domain.NewClientError(domain.ErrNotFound)
+		}
+		return "", domain.NewServiceError(fmt.Errorf("unexpected error while getting user by email: %w", err))
+	}
+
+	if user.Password != password {
+		return "", domain.NewClientError(domain.ErrInvalidCredentails)
+	}
+
+	bytes := make([]byte, 32)
+	_, err = rand.Read(bytes)
+	if err != nil {
+		return "", domain.NewServiceError(fmt.Errorf("failed creating sessionID: %w", err))
+	}
+
+	sessionID := base64.RawURLEncoding.EncodeToString(bytes)
+
+	currentTime := time.Now().UTC()
+	err = service.userCache.InsertSession(ctx, domain.Session{
+		SessionID: sessionID,
+		Email:     email,
+		CreatedAt: currentTime,
+	})
+	if err != nil {
+		return "", domain.NewServiceError(fmt.Errorf("unexpected error while inserting user session: %w", err))
+	}
+
+	return sessionID, nil
 }

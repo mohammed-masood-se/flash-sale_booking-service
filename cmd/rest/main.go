@@ -9,9 +9,11 @@ func main() {
 
 	restServerPort := os.Getenv("REST_SERVER_PORT")
 	mongoUri := os.Getenv("MONGODB_CONNECTION_STRING")
+	redisAddr := os.Getenv("REDIS_ADDRESS")
 
 	app, err := NewApplication(ApplicationConfig{
 		RestServerPort: restServerPort,
+		RedisAddr:      redisAddr,
 		MongoURI:       mongoUri,
 	})
 
