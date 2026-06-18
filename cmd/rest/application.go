@@ -41,7 +41,7 @@ func NewApplication(config ApplicationConfig) (*Application, error) {
 	}
 	log.Println("[mongo-client] connected successfully")
 
-	database := mongoClient.Database("flash-sale")
+	database := mongoClient.Database("booking-service")
 	txmanager := mongorepo.NewMongoTransactionManager(mongoClient)
 
 	redisClient := redis.NewClient(&redis.Options{
